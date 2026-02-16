@@ -4,8 +4,13 @@ export const create = async ({ model, data } = {}) => {
 };
 
 // ==================== find One ====================
-export const findOne = async ({ model, filter = {}, options = {} } = {}) => {
-  const doc = model.findOne(filter);
+export const findOne = async ({
+  model,
+  filter = {},
+  options = {},
+  select = "",
+} = {}) => {
+  const doc = model.findOne(filter).select(select);
 
   if (options.populate) {
     doc.populate(options.populate);
@@ -18,6 +23,7 @@ export const findOne = async ({ model, filter = {}, options = {} } = {}) => {
   if (options.limit) {
     doc.limit(options.limit);
   }
+
   return await doc.exec();
 };
 

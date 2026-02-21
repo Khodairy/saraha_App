@@ -1,3 +1,4 @@
+import { SECRET_KEY } from "../../../config/config.service.js";
 import {
   GenerateToken,
   VerifyToken,
@@ -18,7 +19,7 @@ export const authentication = async (req, res, next) => {
   if (prefix !== "bearer") {
     throw new Error("invalid token prefix");
   }
-  const decode = VerifyToken({ token, secret_key: "Kodairy" });
+  const decode = VerifyToken({ token, secret_key: SECRET_KEY });
 
   if (!decode || !decode?.id) {
     throw new Error("invalid token");

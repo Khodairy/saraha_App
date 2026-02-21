@@ -5,14 +5,12 @@ import {
   encrypt,
 } from "../../common/utils/security/encrypt.security.js";
 import { compare, hash } from "../../common/utils/security/hash.security.js";
-import {
-  GenerateToken,
-  VerifyToken,
-} from "../../common/utils/token.service.js";
+import { GenerateToken } from "../../common/utils/token.service.js";
 import * as db_services from "../../DB/db.service.js";
 import userModel from "../../DB/models/user.model.js";
-import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
+import { OAuth2Client } from "google-auth-library";
+import { SECRET_KEY } from "../../../config/config.service.js";
 
 export const signUp = async (req, res, next) => {
   const {
@@ -23,6 +21,7 @@ export const signUp = async (req, res, next) => {
     age,
     gender,
     provider,
+    role,
     profilePic,
     confirmed,
   } = req.body;
@@ -54,6 +53,7 @@ export const signUp = async (req, res, next) => {
       age,
       gender,
       provider,
+      role,
       profilePic,
       confirmed,
     },
@@ -64,6 +64,62 @@ export const signUp = async (req, res, next) => {
     status: 201,
     message: "New user has been created successfully",
     data: user,
+  });
+};
+
+export const signUp_withGmail = async (req, res, next) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return next(new Error("idToken is required", { cause: 400 }));
+  }
+
+  const client = new OAuth2Client();
+  const ticket = await client.verifyIdToken({
+    idToken,
+    audience:
+      "99890981485-jrovhrvatrnm9iqj2k8brq2lvos8jp0c.apps.googleusercontent.com",
+  });
+  const payload = ticket.getPayload();
+  console.log(payload);
+  let { name, email, email_verified, picture } = payload;
+
+  let user = await db_services.findOne({
+    model: userModel,
+    filter: { email },
+  });
+
+  if (!user) {
+    user = await db_services.create({
+      model: userModel,
+      data: {
+        userName: name,
+        email,
+        provider: providerEnum.google,
+        profilePic: picture,
+        confirmed: email_verified,
+      },
+    });
+  }
+
+  if (user.provider == providerEnum.system) {
+    throw new Error("Please login from system", { cause: 400 });
+  }
+
+  const access_token = GenerateToken({
+    payload: { id: user._id, email: user.email },
+    secret_key: SECRET_KEY,
+    options: {
+      expiresIn: "1h",
+      noTimestamp: true,
+      jwtid: uuidv4(),
+    },
+  });
+
+  return successResponse({
+    res,
+    message: "user logup successfully",
+    data: { name: user.userName, email: user.email, token: access_token },
   });
 };
 
@@ -90,7 +146,7 @@ export const signIn = async (req, res, next) => {
 
   const access_token = GenerateToken({
     payload: { id: user._id, email: user.email },
-    secret_key: "Kodairy",
+    secret_key: SECRET_KEY,
     options: {
       expiresIn: "1h",
       noTimestamp: true,

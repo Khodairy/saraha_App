@@ -33,7 +33,16 @@ const userSchema = new mongoose.Schema(
       enum: Object.values(roleEnum),
       default: roleEnum.user,
     },
-    profilePic: String,
+    profilePic: {
+      secure_url: String,
+      public_id: String,
+    },
+    coverPic: [
+      {
+        secure_url: String,
+        public_id: String,
+      },
+    ],
     confirmed: Boolean,
   },
   {

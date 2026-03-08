@@ -11,6 +11,7 @@ import userModel from "../../DB/models/user.model.js";
 import { v4 as uuidv4 } from "uuid";
 import { OAuth2Client } from "google-auth-library";
 import { SECRET_KEY } from "../../../config/config.service.js";
+import cloudinary from "../../common/utils/cloudinary.js";
 
 export const signUp = async (req, res, next) => {
   const {
@@ -23,8 +24,39 @@ export const signUp = async (req, res, next) => {
     provider,
     role,
     profilePic,
+    coverPic,
     confirmed,
   } = req.body;
+
+  const coverPicUrls = [];
+  if (req.files?.attachments?.length > 0) {
+    for (const file of req.files.attachments) {
+      const upload = await cloudinary.uploader.upload(file.path, {
+        folder: `sarahaApp/users/${email}/covers`,
+        // public_id: "khodairy",
+        use_filename: true,
+        unique_filename: false,
+        resource_type: "image", // default
+      });
+      coverPicUrls.push({
+        secure_url: upload.secure_url,
+        public_id: upload.public_id,
+      });
+    }
+  }
+  let profileData = {};
+  if (req.files?.attachment?.[0]) {
+    const upload = await cloudinary.uploader.upload(
+      req.files.attachment[0].path,
+      {
+        folder: `sarahaApp/users/${email}/profile`,
+      },
+    );
+    profileData = {
+      secure_url: upload.secure_url,
+      public_id: upload.public_id,
+    };
+  }
 
   if (userName.split(" ").length < 2) {
     throw new Error("user name must be consist of first name & last name", {
@@ -54,7 +86,8 @@ export const signUp = async (req, res, next) => {
       gender,
       provider,
       role,
-      profilePic,
+      profilePic: profileData,
+      coverPic: coverPicUrls,
       confirmed,
     },
   });

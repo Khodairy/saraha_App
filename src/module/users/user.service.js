@@ -5,13 +5,21 @@ import {
   encrypt,
 } from "../../common/utils/security/encrypt.security.js";
 import { compare, hash } from "../../common/utils/security/hash.security.js";
-import { GenerateToken } from "../../common/utils/token.service.js";
+import {
+  GenerateToken,
+  VerifyToken,
+} from "../../common/utils/token.service.js";
 import * as db_services from "../../DB/db.service.js";
 import userModel from "../../DB/models/user.model.js";
 import { v4 as uuidv4 } from "uuid";
 import { OAuth2Client } from "google-auth-library";
-import { SECRET_KEY } from "../../../config/config.service.js";
+import {
+  PREFIX,
+  REFRESH_SECRET_KEY,
+  SECRET_KEY,
+} from "../../../config/config.service.js";
 import cloudinary from "../../common/utils/cloudinary.js";
+import { Hash } from "crypto";
 
 export const signUp = async (req, res, next) => {
   const {
@@ -27,6 +35,8 @@ export const signUp = async (req, res, next) => {
     coverPic,
     confirmed,
   } = req.body;
+
+  console.log(req.files);
 
   const coverPicUrls = [];
   if (req.files?.attachments?.length > 0) {
@@ -181,7 +191,6 @@ export const signIn = async (req, res, next) => {
     payload: { id: user._id, email: user.email },
     secret_key: SECRET_KEY,
     options: {
-      expiresIn: "1h",
       noTimestamp: true,
       // issuer: "http://localhost:5000",
       // audience: "http://localhost:3000",
@@ -190,18 +199,165 @@ export const signIn = async (req, res, next) => {
     },
   });
 
+  const refresh_token = GenerateToken({
+    payload: { id: user._id, email: user.email },
+    secret_key: REFRESH_SECRET_KEY,
+    options: {
+      expiresIn: "1y",
+    },
+  });
+
   return successResponse({
     res,
     message: "user loged successfully",
-    data: { name: user.userName, email: user.email, token: access_token },
+    data: {
+      name: user.userName,
+      email: user.email,
+      access_token,
+      refresh_token,
+    },
   });
 };
 
 export const getProfile = async (req, res, next) => {
   const user = req.user;
+  console.log(user);
+
   return successResponse({
     res,
     message: "Retrive user successfully",
     data: { ...user._doc, phone: decrypt(user.phone) },
+  });
+};
+
+export const shareProfile = async (req, res, next) => {
+  const { id } = req.params;
+
+  if (!id || id === "{}" || id === "undefined") {
+    return next(new Error("Please provide a valid User ID", { cause: 400 }));
+  }
+
+  const user = await db_services.findById({
+    model: userModel,
+    id,
+    select: "-password",
+  });
+
+  if (!user) {
+    return next(new Error("user not exist yet", { cause: 404 }));
+  }
+
+  if (user.phone) {
+    user.phone = decrypt(user.phone);
+  }
+
+  return successResponse({
+    res,
+    data: user,
+  });
+};
+
+export const updateProfile = async (req, res, next) => {
+  let { firstName, lastName, gender, phone } = req.body;
+
+  if (phone) {
+    phone = encrypt(phone);
+  }
+
+  const user = await db_services.findOneAndUpdate({
+    model: userModel,
+    filter: { _id: req.user._id },
+    update: { firstName, lastName, gender, phone },
+    options: { new: true },
+  });
+
+  if (!user) {
+    return next(new Error("user not exist yet", { cause: 404 }));
+  }
+
+  return successResponse({
+    res,
+    data: user,
+  });
+};
+
+export const updatePassword = async (req, res, next) => {
+  const { oldPassword, newPassword } = req.body;
+
+  const user = await userModel.findById(req.user._id).select("password");
+
+  if (!user) {
+    return next(new Error("User not found", { cause: 404 }));
+  }
+
+  const isMatch = compare({
+    plainText: oldPassword,
+    cipherText: user.password,
+  });
+
+  if (!isMatch) {
+    return next(new Error("inValid old password", { cause: 400 }));
+  }
+
+  const hashNewPassword = hash({ plainText: newPassword });
+
+  await userModel.updateOne(
+    { _id: req.user._id },
+    { password: hashNewPassword },
+  );
+
+  return successResponse({
+    res,
+    message: "Password updated successfully",
+  });
+};
+
+export const refresh_token = async (req, res, next) => {
+  const { authorization } = req.headers;
+
+  if (!authorization) {
+    throw new Error("token not exist");
+  }
+
+  const [prefix, token] = authorization.split(" ");
+
+  if (!prefix || !token || prefix.toLowerCase() !== PREFIX) {
+    throw new Error("invalid token prefix");
+  }
+  const decode = VerifyToken({ token, secret_key: REFRESH_SECRET_KEY });
+
+  if (!decode || !decode?.id) {
+    throw new Error("invalid token");
+  }
+
+  const user = await db_services.findOne({
+    model: userModel,
+    filter: { _id: decode.id },
+    select: "-password",
+  });
+  if (!user) {
+    throw new Error("user not exist", {
+      cause: 404,
+    });
+  }
+
+  const access_token = GenerateToken({
+    payload: { id: user._id, email: user.email },
+    secret_key: SECRET_KEY,
+    options: {
+      expiresIn: "1h",
+      noTimestamp: true,
+      jwtid: uuidv4(),
+    },
+  });
+
+  return successResponse({
+    res,
+    message: "Token refreshed successfully",
+    data: {
+      name: user.userName,
+      email: user.email,
+      access_token,
+    },
   });
 };

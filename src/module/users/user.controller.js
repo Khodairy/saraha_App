@@ -10,9 +10,11 @@ import { multer_local } from "../../common/middleware/multer.js";
 
 const userRouter = Router();
 
+// ========================== post =========================
+
 userRouter.post(
   "/signup",
-  /* Validation(UV.signUp_Schema), */ multer_local({
+  multer_local({
     custom_path: "users",
     custom_types: [...multer_enum.image],
   }).fields([
@@ -25,22 +27,47 @@ userRouter.post(
       maxCount: 2,
     },
   ]),
+  Validation(UV.signUp_Schema),
   US.signUp,
 );
 
 userRouter.post(
   "/signup/gmail",
-  /* Validation(UV.signUpWithGmail_Schema), */
+  Validation(UV.signUpWithGmail_Schema),
   US.signUp_withGmail,
 );
 
-userRouter.post("/signin", /* Validation(UV.signIn_Schema), */ US.signIn);
+userRouter.post("/signin", Validation(UV.signIn_Schema), US.signIn);
+userRouter.post("/refresh_token", US.refresh_token);
+
+// ========================== get =========================
 
 userRouter.get(
   "/profile",
   authentication,
   authorization([roleEnum.admin]),
   US.getProfile,
+);
+
+userRouter.get(
+  "/share-profile/:id",
+  Validation(UV.shareProfile_Schema),
+  US.shareProfile,
+);
+
+// ========================== patch =========================
+userRouter.patch(
+  "/update-profile",
+  authentication,
+  Validation(UV.updateProfile_Schema),
+  US.updateProfile,
+);
+
+userRouter.patch(
+  "/update-password",
+  authentication,
+  Validation(UV.updatePasswordSchema),
+  US.updatePassword,
 );
 
 export default userRouter;

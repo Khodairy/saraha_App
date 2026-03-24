@@ -34,3 +34,18 @@ export const multer_local = ({
   const upload = multer({ storage, fileFilter });
   return upload;
 };
+
+export const multer_host = ({ custom_types = [] } = {}) => {
+  const storage = multer.diskStorage({});
+
+  function fileFilter(req, file, cb) {
+    if (!custom_types.includes(file.mimetype)) {
+      cb(new Error("Invalid file type!"));
+    } else {
+      cb(null, true);
+    }
+  }
+
+  const upload = multer({ storage, fileFilter });
+  return upload;
+};

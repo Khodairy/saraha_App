@@ -6,4 +6,6 @@ export const PORT = process.env.PORT;
 export const SULT_ROUND = process.env.SULT_ROUND;
 export const DB_URI = process.env.DB_URI;
 export const SECRET_KEY = process.env.SECRET_KEY;
+export const REFRESH_SECRET_KEY = process.env.REFRESH_SECRET_KEY;
 export const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+export const PREFIX = process.env.PREFIX;

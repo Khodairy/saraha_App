@@ -1,4 +1,4 @@
-import { SECRET_KEY } from "../../../config/config.service.js";
+import { PREFIX, SECRET_KEY } from "../../../config/config.service.js";
 import {
   GenerateToken,
   VerifyToken,
@@ -7,36 +7,41 @@ import * as db_services from "../../DB/db.service.js";
 import userModel from "../../DB/models/user.model.js";
 
 export const authentication = async (req, res, next) => {
-  // const { id } = req.params;
+  try {
+    const { authorization } = req.headers;
 
-  const { authorization } = req.headers;
+    if (!authorization) {
+      return next(new Error("token not exist", { cause: 400 }));
+    }
 
-  if (!authentication) {
-    throw new Error("token not exist");
-  }
+    const [prefix, token] = authorization.split(" ");
+    if (!prefix || !token || prefix.toLowerCase() !== PREFIX.toLowerCase()) {
+      return next(new Error("invalid token prefix", { cause: 400 }));
+    }
 
-  const [prefix, token] = authorization.split(" ");
-  if (prefix !== "bearer") {
-    throw new Error("invalid token prefix");
-  }
-  const decode = VerifyToken({ token, secret_key: SECRET_KEY });
+    const decode = VerifyToken({ token, secret_key: SECRET_KEY });
 
-  if (!decode || !decode?.id) {
-    throw new Error("invalid token");
-  }
+    if (decode instanceof Error || decode.message) {
+      return next(new Error(`Token Error: ${decode.message}`, { cause: 401 }));
+    }
 
-  const user = await db_services.findOne({
-    model: userModel,
-    filter: { _id: decode.id },
-    select: "-password",
-  });
+    if (!decode || !decode.id) {
+      return next(new Error("invalid token payload", { cause: 401 }));
+    }
 
-  if (!user) {
-    throw new Error("user not exist", {
-      cause: 404,
+    const user = await db_services.findOne({
+      model: userModel,
+      filter: { _id: decode.id },
+      select: "-password",
     });
-  }
 
-  req.user = user;
-  next();
+    if (!user) {
+      return next(new Error("user not exist", { cause: 404 }));
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    return next(error);
+  }
 };
